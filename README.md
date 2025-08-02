@@ -17,7 +17,7 @@ At a high level, this script can be executed in local terminal against the desir
 :warning: ***NOTE:***
 + The script requires at least Read-only permissions (RBAC) to capture the kubernetes resource manifests
 + The script will create a folder under your current working directory ($PWD) with your EKS cluster name and timestamp - **<EKS_Cluster_Name>_<Current_Timestamp-UTC>**. Please delete/remove the folder and corresponding archive file after sharing it with AWS Support.
-+ When using --system-only, the script will only collect information about system pods (such as kube-proxy, aws-node, karpenter, etc...) and ignore customer workload pods
++ When using `--system-only` flag, the script will only collect information about system pods (such as kube-proxy, aws-node, karpenter, etc...) and ignore customer workload pods
 
 #### Run this project as shown below:
 
@@ -88,7 +88,7 @@ The directory will have following folder Structure:
     └── karpenter_nodeclaim.yaml
 ```
 
-For system-only collection (when using --system-only):
+For system-only collection (when using `--system-only`):
 ```
 ├── Cluster_Info.json             // Cluster ARN and control plane server URL
 ├── EPIC-Script.log               // Script Execution logs
@@ -122,7 +122,7 @@ For system-only collection (when using --system-only):
 ### Examples
 
 #### Example 1 : Get help
-```
+```bash
 $ bash ./eks-pod-information-collector.sh --help
 
 Usage: ./eks-pod-information-collector.sh -p <Podname> -n <Namespace of the pod> -s [Service Name] -i [Ingress Name]
@@ -141,7 +141,7 @@ OPTIONAL:
 ```
 
 #### Example 2 : To collect pod logs and create Archived (Tarball) file
-```
+```bash
 $ bash eks-pod-information-collector.sh -p pod_name -n pod_namespace -s service_name
 
 Script execution started...
@@ -177,7 +177,7 @@ Archiving collected information...
 ```
 
 #### Example 3 : If input arguments not specified
-```
+```bash
 $ bash eks-pod-information-collector.sh
 
 Usage: ./eks-pod-information-collector.sh -p <Podname> -n <Namespace of the pod> -s [Service Name] -i [Ingress Name]
