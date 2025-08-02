@@ -69,6 +69,8 @@ function help() {
   print "\nRequired:"
   print "  -p, --podname \tPod name \t(Required)"
   print "  -n, --namespace \tPod Namespace \t(Required)"
+  print "\n Or"
+  print "  -sys, --system-only \tCollect only system pod information (e.g., kube-proxy, aws-node, etc...)"
   print "\nOPTIONAL:"
   print "  -s, --service \tService name associated with the Pod"
   print "  -i, --ingress \tIngress name associated with the Pod"
@@ -135,6 +137,11 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
+    -sys | --system-only)
+      COLLECT_SYSTEM_PODS=true
+      shift
+      shift 
+      ;;
     *)
       help && exit 1
       shift
@@ -166,32 +173,37 @@ function check_permissions() {
 # Validate the inputs
 function validate_args() {
   log -p "Validating input arguments"
-  if [[ -z $POD_NAME ]] || [[ -z "${NAMESPACE}" ]]; then
-    help
-    error "POD_NAME & NAMESPACE Both arguments are required!!"
+  if [[ $COLLECT_SYSTEM_PODS ]]; then
+    # Skip validation checks
+    log -p "Collecting system pod data"
   else
-    log "Getting Namespace: \"${NAMESPACE}\" to verify if it exists"
-    if [[ ! $(kubectl get ns "${NAMESPACE}" 2> /dev/null) ]]; then
-      error "Namespace ${NAMESPACE} not found!!"
+    if [[ -z $POD_NAME ]] || [[ -z "${NAMESPACE}" ]]; then
+      help
+      error "POD_NAME & NAMESPACE Both arguments are required!!"
     else
-      log "Getting Pod: \"${POD_NAME}\" to verify if it exists"
-      if [[ ! $(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" 2> /dev/null) ]]; then
-        error "Pod ${POD_NAME} not found!!"
-      fi
-      if [[ -n "${SERVICE_NAME}" ]]; then
-        log "Getting Service: \"${SERVICE_NAME}\" to verify if it exists"
-        if [[ ! $(kubectl get service "${SERVICE_NAME}" -n "${NAMESPACE}" 2> /dev/null) ]]; then
-          error "Service ${SERVICE_NAME} not found!!"
+      log "Getting Namespace: \"${NAMESPACE}\" to verify if it exists"
+      if [[ ! $(kubectl get ns "${NAMESPACE}" 2> /dev/null) ]]; then
+        error "Namespace ${NAMESPACE} not found!!"
+      else
+        log "Getting Pod: \"${POD_NAME}\" to verify if it exists"
+        if [[ ! $(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" 2> /dev/null) ]]; then
+          error "Pod ${POD_NAME} not found!!"
         fi
-      fi
-      if [[ -n "${INGRESS_NAME}" ]]; then
-        log "Getting Ingress: \"${INGRESS_NAME}\" to verify if it exists"
-        if [[ ! $(kubectl get ingress "${INGRESS_NAME}" -n "${NAMESPACE}" 2> /dev/null) ]]; then
-          error "Ingress ${INGRESS_NAME} not found!!"
+        if [[ -n "${SERVICE_NAME}" ]]; then
+          log "Getting Service: \"${SERVICE_NAME}\" to verify if it exists"
+          if [[ ! $(kubectl get service "${SERVICE_NAME}" -n "${NAMESPACE}" 2> /dev/null) ]]; then
+            error "Service ${SERVICE_NAME} not found!!"
+          fi
         fi
+        if [[ -n "${INGRESS_NAME}" ]]; then
+          log "Getting Ingress: \"${INGRESS_NAME}\" to verify if it exists"
+          if [[ ! $(kubectl get ingress "${INGRESS_NAME}" -n "${NAMESPACE}" 2> /dev/null) ]]; then
+            error "Ingress ${INGRESS_NAME} not found!!"
+          fi
+        fi
+        export VALID_INPUTS='VALID'
+        log "All arguments are valid, proceeding with execution"
       fi
-      export VALID_INPUTS='VALID'
-      log "All arguments are valid, proceeding with execution"
     fi
   fi
 }
@@ -210,7 +222,7 @@ function get_cluster_iam() {
   log "Collecting CLUSTER_NAME & IAM_ARN information"
   if [[ ! $(kubectl config view --minify -ojsonpath='{.users[0].user.exec.env}') == '<nil>' ]]; then
     log "Identifying if AWS_PROFILE is used in EXEC configuration"
-    PROFILE=$(kubectl config view --minify -ojsonpath='{.users[0].user.exec.env[?(@.name=="AWS_PROFILE")].value}')
+    PROFILE=$(kubectl config view --minify -ojsonpath='{.users[0].user.exec.env[?(@.name=="AWS_PROFILE")].value}' 2>/dev/null)
   fi
   if [[ ${EXEC_COMMAND} == 'aws' ]]; then
     CLUSTER=$(echo "${EXEC_ARGS}" | sed -n -e 's/.*"--cluster-name","\([^"]*\)".*/\1/p; s/.*"--cluster-id","\([^"]*\)".*/\1/p')
@@ -484,7 +496,7 @@ function get_karpenter() {
     OUTPUT_DIR="${OUTPUT_DIR_NAME}/karpenter"
     mkdir "$OUTPUT_DIR"
 
-    log -p "Collecting Karpenter deployment information & logs"
+    log -p 'Collecting information related to deployment: "karpenter"'
     log "Getting Karpenter deployment logs of all containers"
     KARPENTER_LOG_FILE=$(get_filename "karpenter" "log")
     kubectl logs -l app.kubernetes.io/name=karpenter -n "${NS}" --all-containers --tail=-1 > "${KARPENTER_LOG_FILE}"
@@ -540,5 +552,6 @@ if [[ ${VALID_INPUTS} == 'VALID' ]]; then # Collect resources for User Desired P
   get_pod
   get_svc_ingress
   get_volumes
-  finalize
 fi
+
+finalize
